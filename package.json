@@ -1,0 +1,100 @@
+{
+  "name": "dsh-yingnan",
+  "version": "0.1.0",
+  "description": "余英男 · 蜀山派小剑修 —— 桌面宠物：Q 版身形（身高/头宽 3.27，用户选定的「豆包原图」那一档），乌黑长发白玉簪、杏黄交领外袍 + 白色内衬中衣、手执赤红长剑。思考/御剑/收剑/悬剑待命/成事/受挫全程陪你干活，闲下来会念修行手札。从 dsh-redpet（其血统为 dsh-pet 0.3.5）分叉，命名空间与数据目录完全独立。",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "desktop-pet",
+    "pet",
+    "shushan",
+    "xianxia",
+    "sword-cultivator",
+    "floating-widget",
+    "web-ui",
+    "cordis",
+    "react"
+  ],
+  "_comment": [
+    "=============== dsh-yingnan 包清单说明 ===============",
+    "血统：本包的宿主半侧 / 浏览器半侧 / 渲染与投递机制，是从 dsh-redpet（其再上游为 dsh-pet 0.3.5，MIT，作者 PC2005-cloud）的构建产物分叉而来：",
+    "  · 全局把标识 dsh-redpet/redpet/redchat 改名为 dsh-yingnan/yingnan/yingnanchat（路由前缀、用户数据目录、命令名、槽位键、locale 命名空间、CSS 类名与变量、日志前缀）",
+    "    脚本：tools/_rename-yingnan.mjs（带 PROTECT 外部标识保护表，改错了不落盘）",
+    "  · lib/client.js 整个包进 IIFE —— 从根上避免「同批 bundle 拼成 classic script → 顶层声明重名 → 解析期 SyntaxError」",
+    "  · assets/config.jsonc 重写为「余英男的人设/台词 + 15 段动作池」",
+    "  · 动作名沿用父包的 15 个名字 —— 两包的动作提示词与流水线可以通用，真素材同名覆盖即可",
+    "main: lib/index.js —— 宿主半侧入口（Cordis 插件：name/inject/apply）",
+    "exports['./client'] —— 浏览器半侧入口，DSH 模块系统按它提供 /plugins/dsh-yingnan/client.js",
+    "dsh.bundle.patch —— 声明本包是 bundle，patch 文件是 cordis.patch.yml",
+    "dsh.client —— 声明浏览器半侧的注入依赖和平台（web）",
+    "cordis.patch.yml 里 id 必须与包名一致：id: dsh-yingnan",
+    "用户数据目录：$DSH_HOME/dsh-yingnan/（与 dsh-pet / dsh-redpet 完全分开，互不读对方）",
+    "dependencies —— 运行时依赖；桌面模式（Electron 透明窗）用到，浏览器模式用不到，但 lib/index.js 顶层 import 了它们，不能删",
+    "peerDependencies —— 运行时由宿主（DSH）提供，本包不打包它们",
+    "================================================"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "assets/webm",
+    "assets/fonts",
+    "assets/pic",
+    "assets/memes",
+    "assets/config.jsonc",
+    "runtime/electron-helper",
+    "cordis.patch.yml"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@electron-internal/extract-zip": "^1.0.5",
+    "@electron/get": "^5.1.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "compatibility": {
+      "dshReleases": {
+        "0.2.0-rc.1": "compatible",
+        "0.2.0-rc.2": "compatible"
+      }
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-connection"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/dsh-agent-default-model": "^0.2.0-rc.1",
+    "@deepseek-ai/dsh-client-connection": "^0.2.0-rc.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "^0.2.0-rc.1",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.2.0-rc.1",
+    "@deepseek-ai/dsh-commands": "^0.2.0-rc.1",
+    "@deepseek-ai/dsh-credentials": "^0.2.0-rc.1",
+    "@deepseek-ai/dsh-home-paths": "^0.2.0-rc.1",
+    "@deepseek-ai/dsh-host-webserver": "^0.2.0-rc.1",
+    "@deepseek-ai/dsh-llm": "^0.2.0-rc.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}
