@@ -10,14 +10,16 @@
 # ============================================================================
 
 # ---- 动作素材（15 段 VP9-alpha 透明 webm）----------------------------------
-# **当前这 19 段是真实视频素材**：静帧（`out/_stills/`）经火山方舟 480p/5s 生成绿幕视频，
-#   再用 `tools/keyscreen.mjs --key auto` 抠成 VP9-alpha webm。合计约 16 MB。
+# **当前这 18 段是真实视频素材**：静帧（`out/_stills/`）经火山方舟 480p/5s 生成绿幕视频，
+#   再用 `tools/keyscreen.mjs --key auto` 抠成 VP9-alpha webm，最后经 `tools/normalize-materials.mjs`
+#   做**身高归一化**（统一到 294px、脚底 351~352）。合计约 24 MB。
 #   它们是本项目自己造的（定妆图 + 本地抠像），入库无授权问题，**已入库**，
 #   这样 clone 下来就能跑。
 # 真素材按 docs/02 的提示词生成后**同名覆盖**即可（配置一个字都不用改）；
 #   想只换某一两段而不动仓库，就放 $DSH_HOME/dsh-yingnan/main-animation/webm/（优先级更高）。
 # 想自己重做：docs/01（定妆图）→ docs/04（要改颜色/去特效时先改写定妆图）→
-#   docs/02（19 段动作提示词）→ tools/gen-api.mjs → tools/keyscreen.mjs → tools/pipeline.mjs
+#   docs/02（18 段动作提示词）→ tools/gen-api.mjs → tools/keyscreen.mjs → tools/pipeline.mjs
+#   → tools/normalize-materials.mjs（归一化）
 !assets/webm/*.webm
 
 # ---- 其他 dsh-pet 素材 ------------------------------------------------------

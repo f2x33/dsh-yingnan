@@ -165,20 +165,25 @@ console.log(`\n开始归一化转码 → ${OUT}`);
 let ok = 0, bad = 0;
 for (const p of plan) {
   const target = path.join(OUT, p.file);
-  // 先缩放到临时文件，再用 overlay 放到透明底上（scale>1 时 pad 会失败，overlay 不会）
-  const scaled = path.join(OUT, `_tmp-${p.file}`);
-  const r1 = runFfmpeg(['-hide_banner', '-loglevel', 'error', '-y', '-c:v', 'libvpx-vp9', '-i', path.join(SRC, p.file),
-    '-vf', `scale=iw*${p.s}:ih*${p.s}:flags=lanczos`, '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p',
-    '-crf', '10', '-b:v', '0', '-auto-alt-ref', '0', '-row-mt', '1', '-cpu-used', '4', '-an', scaled], { capture: true });
-  if (r1.status !== 0) { console.log(`  ✗ ${p.name} 缩放失败`); bad++; continue; }
-  const r2 = runFfmpeg(['-hide_banner', '-loglevel', 'error', '-y',
-    '-f', 'lavfi', '-i', `color=c=black@0:s=${W}x${H}:r=24`,
-    '-c:v', 'libvpx-vp9', '-i', scaled,
-    '-filter_complex', `[0:v]format=yuva420p[bg];[1:v]format=yuva420p[fg];[bg][fg]overlay=x=${p.dx}:y=${p.dy}:format=auto,format=yuva420p`,
+  // **单次编码**：缩放与"放到透明底上"放进同一个滤镜图 —— 省一遍 VP9 编解码（快一倍、少掉一次画质）。
+  // ⚠ 三个踩过的坑：
+  //   ① lavfi 的 color 源默认**无限长**，直接 overlay 会让 ffmpeg 永远不结束（第一次跑就卡死在这，
+  //      留下 0 字节输出）。必须给 color 加 `d=` 时长并配 `-shortest`。
+  //   ② `color=c=black@0` **不会真的输出 alpha 通道**（color 源出的是 yuv420p），
+  //      后面 `format=yuva420p` 一转换就把透明补成**不透明黑底** —— 结果整幅 640×360 全不透明。
+  //      必须再显式 `colorchannelmixer=aa=0` 把 alpha 乘成 0。
+  //   ③ scale>1 时整体比画布大，用不了 pad，只能用 overlay 落到透明底上。
+  const dur = Math.max(1, (p.frames || 120) / 24 + 0.5);
+  const r = runFfmpeg(['-hide_banner', '-loglevel', 'error', '-y',
+    '-c:v', 'libvpx-vp9', '-i', path.join(SRC, p.file),
+    '-f', 'lavfi', '-i', `color=c=black:s=${W}x${H}:r=24:d=${dur.toFixed(2)}`,
+    '-filter_complex',
+    `[0:v]scale=iw*${p.s}:ih*${p.s}:flags=lanczos,format=yuva420p[fg];` +
+    `[1:v]format=yuva420p,colorchannelmixer=aa=0[bg];[bg][fg]overlay=x=${p.dx}:y=${p.dy}:format=auto,format=yuva420p`,
+    '-shortest',
     '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-crf', '10', '-b:v', '0', '-auto-alt-ref', '0',
     '-row-mt', '1', '-cpu-used', '4', '-an', target], { capture: true });
-  fs.unlinkSync(scaled);
-  if (r2.status !== 0) { console.log(`  ✗ ${p.name} 合成失败：${r2.log.split('\n').filter(Boolean).slice(-1)[0]}`); bad++; continue; }
+  if (r.status !== 0) { console.log(`  ✗ ${p.name} 失败：${r.log.split('\n').filter(Boolean).slice(-1)[0]}`); bad++; continue; }
   const am = probeAlphaMode(target);
   const fr = probeFringe(target);
   console.log(`  ✓ ${p.name.padEnd(22)} scale=${p.s} dy=${p.dy} dx=${p.dx}   alpha=${am}  绿边=${fr?.fringe ?? '?'}px`);

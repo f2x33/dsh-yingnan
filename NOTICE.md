@@ -21,7 +21,7 @@ MIT 允许修改、再分发与再许可，条件是**保留原版权声明与�
 | 标识 | 全局把父包标识 `dsh-redpet` / `redpet` / `redchat` 改为 `dsh-yingnan` / `yingnan` / `yingnanchat`：包名、bundle patch 的 id、路由前缀 `/dsh-yingnan-7340`、用户数据目录 `$DSH_HOME/dsh-yingnan`、命令名、CSS 类名前缀与变量 `--dsh-yingnan-size`、settings 槽位键、locale 命名空间、日志前缀；脚本 `tools/_rename-yingnan.mjs` 带 **PROTECT 外部标识保护表**（仓库名/上游署名一处不动，数量不符就中止且不落盘） |
 | 插件身份 | Cordis 插件名 `redpet` → `yingnan`（与 dsh-pet、dsh-redpet 三者并存时不撞名） |
 | 共存修复 | `lib/client.js` 整个包进 **IIFE**（同级分叉的顶层词法声明会在同批 classic script 里撞名 → 解析期 `SyntaxError`）；回归测试 `tools/verify-coexist.mjs` 两种加载顺序全绿 |
-| 动作 | **15 段扩到 19 段剑侠向**：`assets/config.jsonc` 的 `animations` 段重写（池子、权重、事件档位全部按 15 个素材重排），新增位移动作 `御剑飞行`（`moves.actions`）与 `舞剑` / `拔剑出鞘` / `抱剑而立` |
+| 动作 | **15 段扩到 18 段剑侠向**（先加到 19，后来弃用「剑指苍穹」）：`assets/config.jsonc` 的 `animations` 段重写（池子、权重、事件档位全部按 15 个素材重排），新增位移动作 `御剑飞行`（`moves.actions`）与 `舞剑` / `拔剑出鞘` / `抱剑而立` |
 | 人设 | `whisperPrompt` 与 `workStatusTexts`（6 档）换成蜀山剑侠语境；宠物显示名 `蜀山侠女`（角色本名余英男） |
 | 素材 | 包内 15 段目前是**零成本占位素材**（`tools/make-placeholder.mjs` 由定妆图静态抠像生成），真素材按 `docs/02` 自行生成 |
 | 新增 | `tools/make-placeholder.mjs`（占位素材 + 抠像质量闸门）、`tools/measure-proportion.mjs`、`tools/find-watermark.mjs`、`tools/verify-coexist.mjs`；另有上游一脉相承的 `selftest.mjs` / `gen-api.mjs` / `keyscreen.mjs` / `pipeline.mjs` / `fix-node-modules.ps1` |
