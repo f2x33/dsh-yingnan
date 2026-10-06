@@ -1,14 +1,15 @@
 // 菜单逻辑单测：把 client.js 里的 buildMenuTree / buildGroupNodes / leaf / EVENT_LABELS
-// 抽出来在 Node 里跑一遍，用真实配置验证紧凑菜单确实只列 10 项 + 一个「更多」兜底。
+// 抽出来在 Node 里跑，用**真实配置**验证菜单契约。
+// 契约演进过三版，这版是用户最终要的：
+//   · 菜单**保持"按用途自动分组"**（待机/转向/拖拽/点击回应/移动 + 分类 + 事件池）
+//   · 只把「剑舞 / 剑气 / 剑阵」这三个**"剑"开头的组并成一个「剑招」**
+//   · 分组数因此从 12 变 10（用户最早说的"10 个就好了"）
 import fs from 'node:fs';
 
 const SRC = fs.readFileSync('lib/client.js', 'utf8');
-
-/** 用花括号配平从源码里抽一个函数/常量的定义 */
 function extract(startMarker) {
   const i = SRC.indexOf(startMarker);
   if (i < 0) throw new Error(`抽不到：${startMarker}`);
-  // 函数：抽到配平的右花括号；常量/箭头函数：抽到该语句的 `;`
   if (!startMarker.startsWith('function ')) {
     const end = SRC.indexOf('\n', SRC.indexOf(';', i));
     return SRC.slice(i, end < 0 ? SRC.length : end);
@@ -21,26 +22,21 @@ function extract(startMarker) {
   }
   throw new Error(`配平失败：${startMarker}`);
 }
-
-const parts = [
+const factory = new Function([
   extract('const EVENT_LABELS = '),
   extract('const leaf = '),
   extract('function buildMenuTree('),
   extract('function buildGroupNodes('),
-];
-const factory = new Function(`${parts.join('\n')}\nreturn { buildMenuTree, buildGroupNodes };`);
+].join('\n') + '\nreturn { buildMenuTree, buildGroupNodes };');
 const { buildMenuTree } = factory();
 
-// 真实配置（JSONC → JSON：逐字符处理，避免把字符串里的 // 也当注释）
 function stripJsonc(s) {
   let out = '', inStr = false, esc = false;
   for (let i = 0; i < s.length; i++) {
     const c = s[i];
     if (inStr) {
       out += c;
-      if (esc) esc = false;
-      else if (c === '\\') esc = true;
-      else if (c === '"') inStr = false;
+      if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false;
       continue;
     }
     if (c === '"') { inStr = true; out += c; continue; }
@@ -48,47 +44,75 @@ function stripJsonc(s) {
     if (c === '/' && s[i + 1] === '*') { i += 2; while (i < s.length && !(s[i] === '*' && s[i + 1] === '/')) i++; i++; continue; }
     out += c;
   }
-  return out.replace(/,(\s*[}\]])/g, '$1');   // 去掉尾逗号
+  return out.replace(/,(\s*[}\]])/g, '$1');
 }
 const cfg = JSON.parse(stripJsonc(fs.readFileSync('assets/config.jsonc', 'utf8')));
-const anims = (cfg.main ?? cfg).animations;   // 包内默认配置可能不带 main 外壳，两种都兼容
+const anims = (cfg.main ?? cfg).animations;
+const menuCfg = anims.menu ?? {};
+const merges = menuCfg.merge ?? [];
 
-const tree = buildMenuTree(anims);
-console.log('=== 紧凑菜单（animations.menu.flat 生效时）===');
-if (tree.length !== 1 || tree[0].label !== '动作') throw new Error('顶层结构不对');
-const top = tree[0].children;
-top.forEach((c, i) => console.log(`  ${String(i + 1).padStart(2)}. ${c.label}${c.children ? `  →（${c.children.length} 项）` : ''}`));
+const top = buildMenuTree(anims)[0].children;
+console.log('=== 菜单实际形状（一级分组） ===');
+top.forEach((c, i) => console.log(`  ${String(i + 1).padStart(2)}. ${c.label.padEnd(10)} →（${c.children.length} 项：${c.children.map((x) => x.label).join(' / ')}）`));
 
-const flatExpected = anims.menu.flat;
-const leafLabels = top.filter((c) => !c.children).map((c) => c.label);
-const more = top.find((c) => c.children);
 let fail = 0;
 const check = (cond, msg) => { console.log(`  ${cond ? '✓' : '✗'} ${msg}`); if (!cond) fail++; };
-
 console.log('\n=== 断言 ===');
-check(leafLabels.length === 10, `一级直接列出的动作恰好 10 个（实际 ${leafLabels.length}）`);
-check(JSON.stringify(leafLabels) === JSON.stringify(flatExpected), '一级列出的就是 config 里 menu.flat 那 10 个、顺序一致');
-check(!!more, '末尾挂了「更多」兜底子菜单');
-check(more && more.children.length === (anims.idle.length ? 5 : 4) + anims.categories.length + Object.keys(anims.events).length - 1 + 1,
-  `「更多」里是完整的分组结构（${more ? more.children.length : 0} 组）`);
 
-// 兜底完整性：所有池子里的动作名，要么在一级、要么在「更多」里，一个都不能漏
+// ① 没用 flat 紧凑模式（菜单还是分组形态）
+check(!Array.isArray(menuCfg.flat) || menuCfg.flat.length === 0, '菜单保持「按用途自动分组」形态（配置里没有 flat）');
+
+// ② 合并生效：被并掉的组名一个都不剩，且只剩一个"剑"开头的组
+const mergedAway = merges.flatMap((m) => m.groups ?? []);
+check(mergedAway.length > 0, `配置里有合并规则：${merges.map((m) => `${(m.groups ?? []).join('+')}→${m.label}`).join('；')}`);
+const leftover = top.filter((g) => mergedAway.includes(g.label));
+check(leftover.length === 0, `被并掉的组名不再单独出现${leftover.length ? `（还剩：${leftover.map((g) => g.label).join(', ')}）` : ''}`);
+
+// ③ 合并后的组内容 = 被并各组内容之和（去重后按原分组顺序）
+for (const m of merges) {
+  const node = top.find((g) => g.label === m.label);
+  check(!!node, `合并后的组「${m.label}」存在`);
+  if (!node) continue;
+  const expect = [];
+  for (const src of m.groups ?? []) {
+    const g = (anims.categories ?? []).find((c) => c.id === src);
+    for (const n of g?.actions ?? []) if (!expect.includes(n)) expect.push(n);
+  }
+  const got = node.children.map((x) => x.label);
+  check(JSON.stringify(got) === JSON.stringify(expect), `「${m.label}」= ${m.groups.join('+')} 的并集且顺序一致（${got.join(' / ')}）`);
+}
+
+// ④ 分组数正好是配置里"12 组并成 10 组"的预期
+const catCount = (anims.categories ?? []).length;
+const poolCount = ['idle', 'turn', 'drag', 'clicks'].filter((k) => (anims[k] ?? []).length).length
+  + ((anims.moves?.actions ?? []).length ? 1 : 0);
+const eventCount = Object.keys(anims.events ?? {}).filter((k) => {
+  const p = anims.events[k] ?? [];
+  return p.some((s) => (Array.isArray(s) ? s.length : s));
+}).length;
+const expectedGroups = poolCount + catCount + eventCount - merges.reduce((s, m) => s + Math.max(0, (m.groups ?? []).length - 1), 0);
+check(top.length === expectedGroups, `一级分组数 = ${expectedGroups}（池 ${poolCount} + 分类 ${catCount} + 事件 ${eventCount} − 合并掉 ${expectedGroups - poolCount - catCount - eventCount < 0 ? merges.reduce((s, m) => s + Math.max(0, (m.groups ?? []).length - 1), 0) : 0}）`);
+
+// ⑤ 合并组的位置：落在被并的第一个组原来的位置
+const firstMerged = merges[0]?.groups?.[0];
+if (firstMerged) {
+  const poolIdx = ['idle', 'turn', 'drag', 'clicks'].filter((k) => (anims[k] ?? []).length).length + ((anims.moves?.actions ?? []).length ? 1 : 0);
+  const catIdx = (anims.categories ?? []).findIndex((c) => c.id === firstMerged);
+  const expectPos = poolIdx + catIdx;
+  check(top[expectPos]?.label === merges[0].label, `「${merges[0].label}」落在原「${firstMerged}」的位置（第 ${expectPos + 1} 个）`);
+}
+
+// ⑥ 所有动作名仍然点得到（这版没有 hide，应该一个不少）
 const allPoolNames = new Set();
 for (const k of ['idle', 'turn', 'drag', 'clicks']) for (const n of anims[k] ?? []) allPoolNames.add(n);
 for (const a of anims.moves?.actions ?? []) allPoolNames.add(a.name);
 for (const c of anims.categories ?? []) for (const n of c.actions) allPoolNames.add(n);
 for (const pool of Object.values(anims.events ?? {})) for (const s of pool) Array.isArray(s) ? s.forEach((n) => allPoolNames.add(n)) : allPoolNames.add(s);
-
-const reachable = new Set();
-const walk = (nodes) => nodes.forEach((n) => { if (n.anim) reachable.add(n.anim); if (n.children) walk(n.children); });
-walk(tree);
-const lost = [...allPoolNames].filter((n) => !reachable.has(n));
-check(lost.length === 0, `菜单里点得到全部 ${allPoolNames.size} 个动作名${lost.length ? `（漏了：${lost.join(', ')}）` : ''}`);
-
-// 对照：不写 menu.flat 时的老行为（用来证明兼容）
-const oldTree = buildMenuTree({ ...anims, menu: undefined });
-const oldTop = oldTree[0].children;
-check(oldTop.length > 10, `不写 menu.flat 时仍是老的分组行为（${oldTop.length} 组），向后兼容`);
+const shown = new Set();
+(function walk(nodes) { for (const n of nodes) { if (n.anim) shown.add(n.anim); if (n.children) walk(n.children); } })(top);
+const hideList = menuCfg.hide ?? [];
+const lost = [...allPoolNames].filter((n) => !shown.has(n) && !hideList.includes(n));
+check(lost.length === 0, `配置引用的 ${allPoolNames.size} 个动作名全部点得到${lost.length ? `（漏了：${lost.join(', ')}）` : ''}`);
 
 console.log(fail === 0 ? '\n全部通过 ✅' : `\n${fail} 条断言失败 ❌`);
 process.exit(fail === 0 ? 0 : 1);
