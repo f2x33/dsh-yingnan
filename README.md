@@ -271,17 +271,29 @@ node tools\verify-live.mjs
 | `/plugins/dsh-yingnan/client.js` 返回 200 | **浏览器半侧登记了** —— 这一项**只在 DSH 启动时**扫描，没有重扫入口，所以必须重启过 DSH |
 | 配置里引用的每一段素材都能取到 | 并告诉你哪几段来自**用户目录**、哪几段还是**包内**（按 HTTP 返回长度与两个目录比对） |
 
-不上 DSH 也能做的三个自检：
+不上 DSH 也能做的四个自检：
 
 ```powershell
 node tools\selftest.mjs          # 配置 ↔ 素材：JSONC 解析 / 池子结构 / 权重账 / 文案 / pets / 名字逐字对齐
 node tools\verify-coexist.mjs    # 与 dsh-pet 的顶层声明共存回归（必须全绿）
 node tools\test-menu.mjs         # 右键菜单：一级只列 menu.flat 那 10 项、「更多」兜底不漏动作、不写时向后兼容
+node tools\gh-status.mjs         # 远端仓库体检（只读）：文件树 vs 本地清单是否严格一致 + 最近提交
 ```
 
 > `test-menu.mjs` 会把 `lib/client.js` 里的 `buildMenuTree` / `buildGroupNodes` 抽出来在 Node 里跑，
 > 用**真实配置**断言「紧凑菜单」的三件事：一级恰好 10 项、顺序与 `animations.menu.flat` 一致、
 > 全部动作名仍然点得到。改了菜单相关代码就跑它 —— 不用开浏览器。
+>
+> `gh-status.mjs` 是发布后的核对工具（要 `GH_TOKEN`，细粒度令牌只需 Contents **读**权限）：
+>
+> ```powershell
+> $env:GH_TOKEN = "github_pat_xxx"
+> node tools\gh-status.mjs                                   # 体检默认仓库
+> node tools\gh-status.mjs --repo f2x33/yingnan-pet-desktop  # 体检别的仓库
+> ```
+>
+> 它会同时报出「本地有、远端没有」（漏发）与「远端有、本地没有」（残留）—— 后者是
+> `gh-publish` 那个 `base_tree` 合并语义的坑（**删掉的文件不会自己从远端消失**，要 `--full`）。
 
 手动等价命令（必须带 `Origin`，否则会被 DSH 的浏览器信任检查挡成 401）：
 
@@ -537,7 +549,8 @@ dsh-yingnan\
 │  ├─ selftest.mjs              配置 ↔ 素材体检（不用起 DSH）
 │  ├─ verify-coexist.mjs        与 dsh-pet 的顶层声明共存回归测试
 │  ├─ verify-live.mjs           挂载 / 路由 / 素材来源体检
-│  ├─ gh-publish.mjs            发布到 GitHub（默认 f2x33/dsh-yingnan）
+│  ├─ gh-publish.mjs            发布到 GitHub（默认 f2x33/dsh-yingnan；--full 清远端残留）
+│  ├─ gh-status.mjs             发布后核对：远端文件树 vs 本地清单是否严格一致（只读）
 │  ├─ fix-node-modules.ps1      重建本机依赖解析链接
 │  ├─ _rename-yingnan.mjs       命名空间迁移脚本（带 PROTECT 保护表）
 │  ├─ _wrap-iife.mjs            IIFE 包裹（幂等 + 自愈）
